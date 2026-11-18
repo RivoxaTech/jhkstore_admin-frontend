@@ -799,7 +799,7 @@ try {
   const pcBefore = await api('GET', 'admin/orders/pending-count', null, admToken)
   await goto(a.page, '')
   await a.page.waitForFunction((n) => Number(document.querySelector('[data-testid="orders-badge"]')?.textContent || 0) === n, { timeout: 20000 }, pcBefore.json.count)
-  check(true, 'UI-G2 the Orders badge shows pending orders + payment proofs to check', pcBefore.json)
+  check(true, 'UI-G2 the Orders badge shows the orders that wait (an order with a proof to check is counted once)', pcBefore.json)
   const wsPost = await fetch(`${BASE}/api/v1/store/wholesale-requests`, { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify({ name: `UI Wholesale ${RUN}`, phone: uiPhone(1), product_name: 'UI cartons', quantity: 40, message: 'From the UI flow' }) })
   const wsRef = (await wsPost.json()).data?.reference
   check(wsPost.status === 201 && wsRef, 'UI-G2 a wholesale request arrives through the public form', wsRef)

@@ -11,7 +11,7 @@ export const useUiStore = defineStore('ui', () => {
   const sidebarCollapsed = ref(read('admin_sidebar') === '1')
   const mobileSidebarOpen = ref(false)
   const toasts = ref([])
-  const pendingOrders = ref(0) // pending orders + payment proofs to check: badge on the Orders item and the bell
+  const pendingOrders = ref(0) // orders waiting for the shop (pending: an order whose payment proof is waiting is ONE order): badge on the Orders item and the bell
   const newWholesale = ref(0)  // wholesale requests nobody has looked at yet: badge on the Wholesale item
   // Counters that go up whenever the server says orders / wholesale requests changed: the screens that list them watch these and reload quietly (real time)
   const ordersVersion = ref(0)

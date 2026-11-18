@@ -861,3 +861,11 @@ input[type="date"]::-webkit-calendar-picker-indicator { display: none; }
 .addr-lines { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
 .addr-lines > div { min-width: 0; }
 .addr-copy-all { margin-top: 8px; }
+
+/* the address of an order: one labelled line per piece (Name, Phone, Address, City, ...), the copy icon right behind the value */
+.addr-list { display: grid; gap: 5px; }
+.addr-list .addr-row { display: grid; grid-template-columns: 96px minmax(0, 1fr); align-items: start; gap: 10px; }
+.addr-list .addr-row .k { color: var(--text-2); }
+.addr-list .addr-row .v { font-weight: 500; overflow-wrap: anywhere; }
+.addr-list .addr-row .v .copy-btn { margin-left: 6px; }
+@media (max-width: 520px) { .addr-list .addr-row { grid-template-columns: 78px minmax(0, 1fr); } }

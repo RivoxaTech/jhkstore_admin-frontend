@@ -75,7 +75,7 @@ async function refreshBadges() {
   if (!auth.can('orders.view') && !auth.can('wholesale.view')) return
   try {
     const r = await api.get('admin/badges')
-    if (r.orders) { const n = r.orders.count ?? 0; ui.pendingOrders = n; track('orders', n); version('orders', r.orders.version) }
+    if (r.orders) { const n = r.orders.count ?? 0; ui.pendingOrders = n; track('orders', n + (r.orders.proofs ?? 0)); version('orders', r.orders.version) }
     if (r.wholesale) { const n = r.wholesale.count ?? 0; ui.newWholesale = n; track('wholesale', n); version('wholesale', r.wholesale.version) }
   } catch { /* the badges are optional */ }
 }
@@ -158,7 +158,7 @@ const named = (...names) => (r) => names.includes(r.name)
 // The sidebar: one plain list in the order the owner works in (no group headings). `system` items sit under a thin line.
 const NAV = [
   { to: 'dashboard', text: 'Dashboard', icon: LayoutDashboard, can: 'dashboard.view', on: named('dashboard') },
-  { to: 'orders', text: 'Orders', icon: ShoppingBag, can: 'orders.view', on: named('orders', 'order'), badge: 'pendingOrders', testid: 'orders-badge', title: (n) => `${n} orders or payment proofs waiting` },
+  { to: 'orders', text: 'Orders', icon: ShoppingBag, can: 'orders.view', on: named('orders', 'order'), badge: 'pendingOrders', testid: 'orders-badge', title: (n) => `${n} order${n === 1 ? "" : "s"} waiting for you` },
   { to: 'wholesale', text: 'Wholesale', icon: Store, can: 'wholesale.view', on: named('wholesale', 'wholesale-request'), badge: 'newWholesale', testid: 'wholesale-badge', title: (n) => `${n} new requests` },
   { to: 'customers', text: 'Customers', icon: Users, can: 'customers.view', on: named('customers') },
   { to: 'products', text: 'Products', icon: Package, can: 'products.view', on: (r) => String(r.name).startsWith('product') },

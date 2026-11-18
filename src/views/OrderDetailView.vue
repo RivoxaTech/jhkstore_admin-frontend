@@ -246,6 +246,13 @@ async function copyAll(a) {
   ui.toast(ok ? 'Delivery details copied.' : 'Could not copy.', ok ? 'success' : 'error')
 }
 const addressLines = (a) => [a.line1, a.area, a.landmark && `Landmark: ${a.landmark}`, [a.city, a.state, a.postcode].filter(Boolean).join(', '), a.country].filter(Boolean)
+/** One labelled line per piece of the address (Name, Phone, Address, City, ...), each with its own copy icon, plus the whole address in one line. Empty pieces are left out. */
+function addressRows(a, withEmail = false) {
+  const rows = [['Name', a.name], ['Phone', a.phone]]
+  if (withEmail) rows.push(['E-mail', o.value?.customer?.email])
+  rows.push(['Address', a.line1], ['Area', a.area], ['Landmark', a.landmark], ['City', a.city], ['State', a.state], ['Postcode', a.postcode], ['Country', a.country], ['Full address', [a.line1, a.area, a.landmark, a.city, a.state, a.postcode, a.country].filter(Boolean).join(', ')])
+  return rows.filter(([, v]) => v && String(v).trim() !== '').map(([k, v]) => ({ k, v: String(v) }))
+}
 const stepClass = (s) => ({ 'is-cancelled': s.status === 'cancelled' || s.status === 'rejected', 'is-delivered': s.status === 'delivered' })
 </script>
 
@@ -409,13 +416,8 @@ const stepClass = (s) => ({ 'is-cancelled': s.status === 'cancelled' || s.status
 
           <section class="card">
             <div class="card__head"><h2>Shipping address</h2></div>
-            <div v-if="o.shipping_address" class="addr">
-              <strong>{{ o.shipping_address.name }}<span v-if="o.shipping_address.type" class="tag">{{ o.shipping_address.type }}</span> <CopyButton :text="o.shipping_address.name" label="Copy name" /></strong>
-              <div class="addr-lines"><div>
-                <div v-for="line in addressLines(o.shipping_address)" :key="line">{{ line }}</div>
-              </div><CopyButton :text="addressLines(o.shipping_address).join(', ')" label="Copy address" /></div>
-              <div>Phone: {{ o.shipping_address.phone }} <CopyButton :text="o.shipping_address.phone" label="Copy phone" /></div>
-              <div v-if="o.customer.email">E-mail: {{ o.customer.email }} <CopyButton :text="o.customer.email" label="Copy e-mail" /></div>
+            <div v-if="o.shipping_address" class="addr addr-list" data-testid="shipping-address">
+              <div v-for="r in addressRows(o.shipping_address, true)" :key="r.k" class="addr-row"><span class="k">{{ r.k }}</span><span class="v">{{ r.v }}<CopyButton :text="r.v" :label="`Copy ${r.k.toLowerCase()}`" /></span></div>
               <button class="btn btn-outline btn-sm addr-copy-all" type="button" data-testid="copy-shipping" @click="copyAll(o.shipping_address)"><Copy :size="14" /> Copy all</button>
             </div>
             <div v-if="sameAddress" class="addr-same muted">Billing address: same as the shipping address.</div>
@@ -423,12 +425,8 @@ const stepClass = (s) => ({ 'is-cancelled': s.status === 'cancelled' || s.status
 
           <section v-if="!sameAddress" class="card">
             <div class="card__head"><h2>Billing address</h2></div>
-            <div v-if="o.billing_address" class="addr">
-              <strong>{{ o.billing_address.name }}<span v-if="o.billing_address.type" class="tag">{{ o.billing_address.type }}</span> <CopyButton :text="o.billing_address.name" label="Copy name" /></strong>
-              <div class="addr-lines"><div>
-                <div v-for="line in addressLines(o.billing_address)" :key="line">{{ line }}</div>
-              </div><CopyButton :text="addressLines(o.billing_address).join(', ')" label="Copy address" /></div>
-              <div>Phone: {{ o.billing_address.phone }} <CopyButton :text="o.billing_address.phone" label="Copy phone" /></div>
+            <div v-if="o.billing_address" class="addr addr-list" data-testid="billing-address">
+              <div v-for="r in addressRows(o.billing_address)" :key="r.k" class="addr-row"><span class="k">{{ r.k }}</span><span class="v">{{ r.v }}<CopyButton :text="r.v" :label="`Copy ${r.k.toLowerCase()}`" /></span></div>
             </div>
           </section>
 
