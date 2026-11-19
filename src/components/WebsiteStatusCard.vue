@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { Globe, RefreshCw } from '@lucide/vue'
 import { api } from '@/api/client.js'
 import { useUiStore } from '@/stores/ui.js'
@@ -15,6 +15,8 @@ const working = ref(false)
 async function load() {
   error.value = ''
   try { status.value = await api.get('admin/website/status') } catch (e) { error.value = e.message }
+  if (!watchUntil || Date.now() > watchUntil) watchUntil = Date.now() + 20 * 60 * 1000
+  watch()
 }
 onMounted(load)
 defineExpose({ load })
@@ -24,6 +26,8 @@ async function rebuild() {
   try {
     const res = await api.post('admin/website/rebuild')
     status.value = res
+    watchUntil = Date.now() + 20 * 60 * 1000
+    watch()
     if (res.result?.ok) ui.toast('The website is being rebuilt. New products show in 1 to 3 minutes.')
     else ui.toast(`The hosting did not accept the request: ${res.result?.error || 'unknown error'}`, 'error')
   } catch (e) {
@@ -35,6 +39,36 @@ async function rebuild() {
 }
 
 const last = computed(() => status.value?.last_result)
+
+// Which version of the website is online: the server reads /build.json of the website (written by every build) and compares it with the last request.
+function onlineRow(s) {
+  const live = s.live || { state: 'no_address' }
+  const built = live.built_at ? `built ${timeAgo(live.built_at)}` : ''
+  const map = {
+    live: ['ok', s.last_requested_at ? `Online: ${built}` : `Online, ${built}`, s.last_requested_at ? 'The last rebuild is online.' : ''],
+    building: ['warn', 'Building...', `Asked for ${timeAgo(s.last_requested_at)}. The old version is still online; this page checks again by itself, usually within 1 to 3 minutes.`],
+    stuck: ['bad', 'Not online yet', 'Asked for more than 15 minutes ago and the old version is still online. Look at the build log in the hosting (Cloudflare: Workers & Pages, Deployments).'],
+    unreachable: ['warn', 'Cannot tell', 'The website version could not be read. Check the website address in the fields below; a build made before this feature has no version file yet.'],
+    no_address: ['off', 'Not known', 'Enter the address of your website in the fields below to see here when a rebuild is online.'],
+  }
+  const [tone, text, help] = map[live.state] || map.no_address
+  return { id: 'online', label: 'Website online', tone, text, help }
+}
+
+// while a rebuild is on its way, look again every 8 seconds (for at most 20 minutes) and say when the new version is online
+let watchTimer
+let watchUntil = 0
+function watch() {
+  clearTimeout(watchTimer)
+  if (status.value?.live?.state !== 'building' || Date.now() > watchUntil) return
+  watchTimer = setTimeout(async () => {
+    const before = status.value?.live?.state
+    await load()
+    if (before === 'building' && status.value?.live?.state === 'live') ui.toast('The new version of the website is online.')
+    watch()
+  }, 8000)
+}
+onBeforeUnmount(() => clearTimeout(watchTimer))
 const rows = computed(() => {
   const s = status.value
   if (!s) return []
@@ -43,6 +77,7 @@ const rows = computed(() => {
     { id: 'auto', label: 'Automatic rebuild', tone: s.enabled && s.hook_configured ? 'ok' : 'off', text: s.enabled ? `On, ${s.debounce_seconds} seconds after the last change` : 'Off', help: s.enabled ? '' : 'Changes do not rebuild the website by themselves: use the button.' },
     { id: 'pending', label: 'Changes waiting', tone: s.pending_changes ? 'warn' : 'ok', text: String(s.pending_changes), help: s.waiting ? 'A rebuild is scheduled.' : '' },
     { id: 'requested', label: 'Last rebuild requested', tone: s.last_requested_at ? 'ok' : 'off', text: s.last_requested_at ? timeAgo(s.last_requested_at) : 'Never', help: '' },
+    onlineRow(s),
     { id: 'result', label: 'Last result', tone: !last.value ? 'off' : last.value.ok ? 'ok' : 'bad', text: !last.value ? '-' : last.value.ok ? 'OK' : 'Failed', help: last.value && !last.value.ok ? last.value.error || '' : '' },
   ]
 })

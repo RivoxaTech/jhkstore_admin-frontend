@@ -18,7 +18,6 @@ const pending = defineModel('pending', { type: Array, default: () => [] })
 const ui = useUiStore()
 
 const file = ref(null)
-const poster = ref(null)
 const progress = ref(null)     // null = idle, 0..100 while uploading
 const error = ref('')
 const busy = computed(() => progress.value !== null)
@@ -37,17 +36,9 @@ function pickVideo(e) {
   // choosing the file IS the upload: a saved product gets it at once (with the progress bar), a new product keeps it and uploads it when the product is saved
   if (staging.value) stage(); else upload()
 }
-function pickPoster(e) {
-  const f = e.target.files[0]
-  e.target.value = ''
-  if (!f) return
-  if (!/\.(png|jpe?g|webp)$/i.test(f.name)) { error.value = 'The poster must be a PNG, JPG or WEBP picture.'; return }
-  if (f.size > props.limits.poster_max_mb * 1024 * 1024) { error.value = `The poster must be ${props.limits.poster_max_mb} MB or smaller.`; return }
-  poster.value = f
-}
 
 /**
- * A cover from the video itself (a frame about a second in), used when no poster picture was chosen, so a video always gets a cover on the shop
+ * A cover from the video itself (a frame about a second in), so a video always gets a cover on the shop
  * and a thumbnail here. Resolves to a JPEG file, or null when the browser cannot read the video (some codecs) or takes too long.
  */
 function frameOf(f) {
@@ -95,10 +86,9 @@ const messageOf = (e) => (e.status === 422 ? Object.values(e.errors).flat()[0] |
 async function stage() {
   if (!file.value) return
   const chosen = file.value
-  const cover = poster.value || (await frameOf(chosen))
+  const cover = await frameOf(chosen)
   pending.value = [...pending.value, { key: `${Date.now()}-${pending.value.length}`, file: chosen, poster: cover }]
   file.value = null
-  poster.value = null
 }
 const unstage = (key) => { pending.value = pending.value.filter(p => p.key !== key) }
 
@@ -109,11 +99,10 @@ async function upload() {
   try {
     const form = new FormData()
     form.append('video', file.value)
-    const cover = poster.value || (await frameOf(file.value))
+    const cover = await frameOf(file.value)
     if (cover) form.append('poster', cover)
     videos.value = (await api.postFormProgress(`admin/products/${props.productId}/videos`, form, (p) => { progress.value = p })).data
     file.value = null
-    poster.value = null
     ui.toast('Video added.')
   } catch (e) {
     error.value = messageOf(e)
@@ -186,12 +175,11 @@ async function move(i, by) {
 
     <div v-if="!full" class="vm__add">
       <label class="btn btn-primary btn-sm"><UploadCloud :size="14" /> {{ busy ? 'Uploading...' : 'Upload video' }}<input type="file" accept="video/mp4,video/webm" class="sr-only" aria-label="Video file" data-testid="video-input" :disabled="busy" @change="pickVideo" /></label>
-      <label class="btn btn-outline btn-sm"><ImagePlus :size="14" /> {{ poster ? 'Change poster' : 'Own cover picture (optional, pick it first)' }}<input type="file" accept="image/png,image/jpeg,image/webp" class="sr-only" aria-label="Poster picture" :disabled="busy" @change="pickPoster" /></label>
       <span v-if="file && busy" class="muted">{{ file.name }} ({{ formatBytes(file.size) }})</span>
     </div>
     <div v-if="busy" class="vm__bar" role="progressbar" :aria-valuenow="progress" aria-valuemin="0" aria-valuemax="100"><i :style="{ width: `${progress}%` }" /><span>{{ progress }}%</span></div>
     <p v-else-if="full" class="hint">{{ limits.max_files }} videos is the most a product can have. Delete one to add another.</p>
-    <p class="hint">MP4 or WEBM, up to {{ limits.max_mb }} MB each, at most {{ limits.max_files }} videos. The cover is a picture taken from the video itself, unless you choose your own cover picture before the video. The file is shown as it is (no conversion), so keep it small. A slow connection makes a large file take a while: wait for the bar to finish.</p>
+    <p class="hint">MP4 or WEBM, up to {{ limits.max_mb }} MB each, at most {{ limits.max_files }} videos. The cover is a picture taken from the video itself; to use your own picture, press the picture icon on the video after it is uploaded. The file is shown as it is (no conversion), so keep it small. A slow connection makes a large file take a while: wait for the bar to finish.</p>
     <p v-if="error" class="err" role="alert">{{ error }}</p>
   </div>
 </template>
