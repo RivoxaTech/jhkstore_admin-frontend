@@ -137,7 +137,7 @@ export const api = {
       xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest')
       xhr.setRequestHeader('X-XSRF-TOKEN', readCookie('XSRF-TOKEN') || '')
       xhr.upload.onprogress = (e) => { if (e.lengthComputable) onProgress?.(Math.round((e.loaded / e.total) * 100)) }
-      xhr.onerror = () => reject(new ApiError(0, { message: 'Cannot reach the server. Check that the backend is running.' }))
+      xhr.onerror = () => reject(new ApiError(0, { message: 'The connection to the server was lost during the upload (slow or unstable internet, or the host closed it). Try again.' }))
       xhr.onload = () => {
         let data = null
         try { data = JSON.parse(xhr.responseText) } catch { /* not JSON */ }
@@ -145,6 +145,8 @@ export const api = {
         if (xhr.status === 401) unauthorizedHandler(path)
         // a file larger than the PHP limits is refused before Laravel sees it: say so in plain words
         if (xhr.status === 413) return reject(new ApiError(413, { message: 'The file is larger than the server allows. Ask your developer to raise upload_max_filesize and post_max_size.' }))
+        // an answer that is not ours (an HTML error page of the host, a gateway time-out): name the number, so it can be told to the developer
+        if (!data) return reject(new ApiError(xhr.status, { message: `The server did not accept the upload (answer ${xhr.status}). Try again; if it keeps happening, tell your developer.` }))
         reject(new ApiError(xhr.status, data))
       }
       xhr.send(form)

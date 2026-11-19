@@ -142,7 +142,7 @@ async function move(i, by) {
     </div>
     <div v-if="busy" class="vm__bar" role="progressbar" :aria-valuenow="progress" aria-valuemin="0" aria-valuemax="100"><i :style="{ width: `${progress}%` }" /><span>{{ progress }}%</span></div>
     <p v-else-if="full" class="hint">{{ limits.max_files }} videos is the most a product can have. Delete one to add another.</p>
-    <p class="hint">MP4 or WEBM, up to {{ limits.max_mb }} MB each, at most {{ limits.max_files }} videos. The file is shown as it is (no conversion), so keep it small. The server's upload limit (upload_max_filesize) must allow it.</p>
+    <p class="hint">MP4 or WEBM, up to {{ limits.max_mb }} MB each, at most {{ limits.max_files }} videos. The file is shown as it is (no conversion), so keep it small. A slow connection makes a large file take a while: wait for the bar to finish.</p>
     <p v-if="error" class="err" role="alert">{{ error }}</p>
   </div>
 </template>

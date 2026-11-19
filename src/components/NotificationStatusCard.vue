@@ -105,8 +105,9 @@ async function sendTest() {
       const r = await api.get(`admin/push/test/${id}`)
       if (r.status === 'sent') { test.value = { state: 'ok', text: 'Sent. A notification should appear now. If you see nothing, check Focus Assist / Do Not Disturb and the browser notification settings.' }; return load() }
       if (['failed', 'partial', 'no_device'].includes(r.status)) { test.value = { state: 'error', text: r.error || 'The push service did not accept the message.' }; return load() }
-      if (Date.now() - started > 25000) { test.value = { state: 'error', text: 'Still waiting after 25 seconds: no queue worker took the job. Start it with php artisan queue:work.' }; return load() }
-      test.value = { state: 'working', text: r.queue === 'stopped' ? 'Waiting for the queue worker (none seems to be running)...' : 'Waiting for the queue worker...' }
+      // a host that starts the worker from a cron job once a minute takes a job within 60 seconds, so wait a little longer than that
+      if (Date.now() - started > 90000) { test.value = { state: 'error', text: 'Still waiting after 90 seconds: no queue worker took the job. Check that the cron job for php artisan queue:work runs every minute (or start the worker).' }; return load() }
+      test.value = { state: 'working', text: Date.now() - started > 20000 ? 'Waiting for the queue worker (a cron job starts it once a minute, up to 60 seconds)...' : 'Waiting for the queue worker...' }
     } catch (e) {
       test.value = { state: 'error', text: e.message }
       return
