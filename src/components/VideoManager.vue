@@ -46,12 +46,57 @@ function pickPoster(e) {
   poster.value = f
 }
 
+/**
+ * A cover from the video itself (a frame about a second in), used when no poster picture was chosen, so a video always gets a cover on the shop
+ * and a thumbnail here. Resolves to a JPEG file, or null when the browser cannot read the video (some codecs) or takes too long.
+ */
+function frameOf(f) {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(f)
+    const v = document.createElement('video')
+    let done = false
+    let timer
+    const finish = (blob) => {
+      if (done) return
+      done = true
+      clearTimeout(timer)
+      v.removeAttribute('src')
+      v.load()
+      URL.revokeObjectURL(url)
+      resolve(blob ? new File([blob], 'cover.jpg', { type: 'image/jpeg' }) : null)
+    }
+    timer = setTimeout(() => finish(null), 4000)
+    v.muted = true
+    v.playsInline = true
+    v.preload = 'metadata'
+    v.onerror = () => finish(null)
+    v.onloadedmetadata = () => { v.currentTime = Math.min(1, (Number.isFinite(v.duration) ? v.duration : 2) / 4) }
+    v.onseeked = () => {
+      try {
+        const w = Math.min(640, v.videoWidth)
+        const h = w ? Math.round((w * v.videoHeight) / v.videoWidth) : 0
+        if (!w || !h) return finish(null)
+        const canvas = document.createElement('canvas')
+        canvas.width = w
+        canvas.height = h
+        canvas.getContext('2d').drawImage(v, 0, 0, w, h)
+        canvas.toBlob((b) => finish(b), 'image/jpeg', 0.82)
+      } catch {
+        finish(null)
+      }
+    }
+    v.src = url
+  })
+}
+
 const messageOf = (e) => (e.status === 422 ? Object.values(e.errors).flat()[0] || e.message : e.message)
 
 /** New product: keep the chosen video (and poster) until the product is saved. */
-function stage() {
+async function stage() {
   if (!file.value) return
-  pending.value = [...pending.value, { key: `${Date.now()}-${pending.value.length}`, file: file.value, poster: poster.value }]
+  const chosen = file.value
+  const cover = poster.value || (await frameOf(chosen))
+  pending.value = [...pending.value, { key: `${Date.now()}-${pending.value.length}`, file: chosen, poster: cover }]
   file.value = null
   poster.value = null
 }
@@ -64,7 +109,8 @@ async function upload() {
   try {
     const form = new FormData()
     form.append('video', file.value)
-    if (poster.value) form.append('poster', poster.value)
+    const cover = poster.value || (await frameOf(file.value))
+    if (cover) form.append('poster', cover)
     videos.value = (await api.postFormProgress(`admin/products/${props.productId}/videos`, form, (p) => { progress.value = p })).data
     file.value = null
     poster.value = null
@@ -123,7 +169,10 @@ async function move(i, by) {
     </ul>
     <ul v-if="!staging && videos.length" class="vm__list">
       <li v-for="(v, i) in videos" :key="v.id" :data-video="v.id">
-        <span class="vm__poster"><img v-if="v.poster_url" :src="v.poster_url" :alt="`Poster of ${v.name}`" /><UploadCloud v-else :size="20" /></span>
+        <span class="vm__poster">
+          <img v-if="v.poster_url" :src="v.poster_url" :alt="`Poster of ${v.name}`" />
+          <video v-else :src="`${v.url}#t=0.5`" preload="metadata" muted playsinline tabindex="-1" aria-hidden="true" />
+        </span>
         <div class="grow">
           <a :href="v.url" target="_blank" rel="noopener"><strong>{{ v.name }}</strong></a>
           <small class="muted">{{ v.mime }} · {{ formatBytes(v.size) }}<template v-if="!v.poster_url"> · no poster picture</template></small>
@@ -137,12 +186,12 @@ async function move(i, by) {
 
     <div v-if="!full" class="vm__add">
       <label class="btn btn-primary btn-sm"><UploadCloud :size="14" /> {{ busy ? 'Uploading...' : 'Upload video' }}<input type="file" accept="video/mp4,video/webm" class="sr-only" aria-label="Video file" data-testid="video-input" :disabled="busy" @change="pickVideo" /></label>
-      <label class="btn btn-outline btn-sm"><ImagePlus :size="14" /> {{ poster ? 'Change poster' : 'Poster picture (optional, pick it first)' }}<input type="file" accept="image/png,image/jpeg,image/webp" class="sr-only" aria-label="Poster picture" :disabled="busy" @change="pickPoster" /></label>
+      <label class="btn btn-outline btn-sm"><ImagePlus :size="14" /> {{ poster ? 'Change poster' : 'Own cover picture (optional, pick it first)' }}<input type="file" accept="image/png,image/jpeg,image/webp" class="sr-only" aria-label="Poster picture" :disabled="busy" @change="pickPoster" /></label>
       <span v-if="file && busy" class="muted">{{ file.name }} ({{ formatBytes(file.size) }})</span>
     </div>
     <div v-if="busy" class="vm__bar" role="progressbar" :aria-valuenow="progress" aria-valuemin="0" aria-valuemax="100"><i :style="{ width: `${progress}%` }" /><span>{{ progress }}%</span></div>
     <p v-else-if="full" class="hint">{{ limits.max_files }} videos is the most a product can have. Delete one to add another.</p>
-    <p class="hint">MP4 or WEBM, up to {{ limits.max_mb }} MB each, at most {{ limits.max_files }} videos. The file is shown as it is (no conversion), so keep it small. A slow connection makes a large file take a while: wait for the bar to finish.</p>
+    <p class="hint">MP4 or WEBM, up to {{ limits.max_mb }} MB each, at most {{ limits.max_files }} videos. The cover is a picture taken from the video itself, unless you choose your own cover picture before the video. The file is shown as it is (no conversion), so keep it small. A slow connection makes a large file take a while: wait for the bar to finish.</p>
     <p v-if="error" class="err" role="alert">{{ error }}</p>
   </div>
 </template>
@@ -152,7 +201,7 @@ async function move(i, by) {
 .vm__list { list-style: none; display: grid; gap: 6px; }
 .vm__list li { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border: 1px solid var(--border-light); border-radius: 8px; }
 .vm__poster { width: 56px; height: 36px; border-radius: 6px; background: var(--muted-soft); display: grid; place-items: center; overflow: hidden; color: var(--text-3); flex: none; }
-.vm__poster img { width: 100%; height: 100%; object-fit: cover; }
+.vm__poster img, .vm__poster video { width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
 .grow { flex: 1; min-width: 0; }
 .grow small { display: block; }
 .vm__add { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
