@@ -17,11 +17,23 @@ const busy = ref(false)
 const role = computed(() => ({ developer: 'Developer', admin: 'Admin' })[auth.role] || auth.role)
 const err = (k) => errors.value[k]?.[0] || ''
 
+// the rules are the server's (it says how many characters it needs: 12 on a live server), so the page never accepts what the server will refuse
+const min = computed(() => auth.admin?.password_min || 8)
+const rules = computed(() => [
+  { id: 'length', text: `At least ${min.value} characters`, ok: form.password.length >= min.value },
+  { id: 'username', text: 'Not your username', ok: form.password !== '' && form.password.toLowerCase() !== String(auth.admin?.username || '').toLowerCase() },
+  { id: 'old', text: 'Different from your current password', ok: form.password !== '' && form.password !== form.current_password },
+  { id: 'same', text: 'The two new passwords are the same', ok: form.password !== '' && form.password === form.password_confirmation },
+])
+const ready = computed(() => !!form.current_password && rules.value.every((r) => r.ok))
+
 async function save() {
   errors.value = {}
   message.value = ''
   if (!form.current_password) errors.value.current_password = ['Enter your current password.']
-  if (form.password.length < 8) errors.value.password = ['The new password needs at least 8 characters.']
+  if (form.password.length < min.value) errors.value.password = [`The new password needs at least ${min.value} characters.`]
+  else if (form.password.toLowerCase() === String(auth.admin?.username || '').toLowerCase()) errors.value.password = ['The password cannot be your username.']
+  else if (form.password === form.current_password) errors.value.password = ['Choose a password you have not used just now.']
   else if (form.password !== form.password_confirmation) errors.value.password_confirmation = ['The two new passwords are not the same.']
   if (Object.keys(errors.value).length) return
   busy.value = true
@@ -73,14 +85,16 @@ async function save() {
           <label for="pw-new">New password</label>
           <PasswordInput id="pw-new" v-model="form.password" autocomplete="new-password" :invalid="!!err('password')" />
           <p v-if="err('password')" class="err">{{ err('password') }}</p>
-          <p v-else class="muted hint">At least 8 characters (12 on a live server), not your username.</p>
         </div>
         <div class="field">
           <label for="pw-again">New password again</label>
           <PasswordInput id="pw-again" v-model="form.password_confirmation" autocomplete="new-password" :invalid="!!err('password_confirmation')" />
           <p v-if="err('password_confirmation')" class="err">{{ err('password_confirmation') }}</p>
         </div>
-        <div><button class="btn btn-primary" type="submit" :disabled="busy" data-testid="password-save"><span v-if="busy" class="spinner" /> Change password</button></div>
+        <ul class="rules" aria-label="Password rules" data-testid="password-rules">
+          <li v-for="r in rules" :key="r.id" :class="{ 'is-ok': r.ok }" :data-rule="r.id" :data-ok="r.ok"><span class="rules__dot" aria-hidden="true">{{ r.ok ? '✓' : '' }}</span>{{ r.text }}</li>
+        </ul>
+        <div class="profile-actions"><button class="btn btn-primary" type="submit" :disabled="busy || !ready" data-testid="password-save"><span v-if="busy" class="spinner" /> Save new password</button></div>
       </form>
     </section>
   </div>
@@ -91,7 +105,14 @@ async function save() {
 .profile-me { display: flex; align-items: center; gap: 16px; }
 .profile-me h2 { font-size: 17px; }
 .avatar--xl { width: 64px; height: 64px; font-size: 22px; }
-.profile-form { display: grid; gap: 14px; max-width: 420px; }
-.hint { font-size: 12px; margin-top: 4px; }
+.profile-form { display: grid; gap: 16px; max-width: 440px; }
+.profile-form .field { display: grid; gap: 6px; }
+.profile-form .field label { font-weight: 600; font-size: 13px; }
+.rules { list-style: none; display: grid; gap: 6px; padding: 12px 14px; background: var(--muted-soft); border-radius: 10px; font-size: 13px; color: var(--text-3); }
+.rules li { display: flex; align-items: center; gap: 10px; }
+.rules__dot { flex: none; width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid var(--border, #cbd5e1); display: grid; place-items: center; font-size: 11px; font-weight: 700; line-height: 1; }
+.rules li.is-ok { color: var(--text); }
+.rules li.is-ok .rules__dot { background: var(--success, #16a34a); border-color: var(--success, #16a34a); color: #fff; }
+.profile-actions .btn { width: 100%; justify-content: center; }
 @media (max-width: 900px) { .profile-grid { grid-template-columns: minmax(0, 1fr); } }
 </style>
