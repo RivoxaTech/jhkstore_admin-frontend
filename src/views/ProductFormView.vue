@@ -228,7 +228,12 @@ function ensureDefault() {
   if (!current) { const first = variants.value.find(v => v.is_active); variants.value.forEach(v => { v.is_default = v === first }) }
 }
 function onActiveChange() { clearError('variants'); ensureDefault() }
-function removeVariant(i) { variants.value.splice(i, 1); ensureDefault() }
+function removeVariant(i) {
+  variants.value.splice(i, 1)
+  ensureDefault()
+  // back to ONE option: the table hides its name and SKU again (the option is the product), so it takes the product's name
+  if (variants.value.length === 1 && form.name.trim()) variants.value[0].name = form.name
+}
 
 const toggleTab = (key) => {
   const next = new Set(openTabs.value)

@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, ref } from 'vue'
 import { ArrowDown, ArrowUp, ImagePlus, Trash2, UploadCloud } from '@lucide/vue'
 import { api } from '@/api/client.js'
 import { useUiStore } from '@/stores/ui.js'
@@ -87,10 +87,27 @@ async function stage() {
   if (!file.value) return
   const chosen = file.value
   const cover = await frameOf(chosen)
-  pending.value = [...pending.value, { key: `${Date.now()}-${pending.value.length}`, file: chosen, poster: cover }]
+  pending.value = [...pending.value, { key: `${Date.now()}-${pending.value.length}`, file: chosen, poster: cover, preview: cover ? URL.createObjectURL(cover) : '' }]
   file.value = null
 }
-const unstage = (key) => { pending.value = pending.value.filter(p => p.key !== key) }
+const unstage = (key) => {
+  const gone = pending.value.find(p => p.key === key)
+  if (gone?.preview) URL.revokeObjectURL(gone.preview)
+  pending.value = pending.value.filter(p => p.key !== key)
+}
+onBeforeUnmount(() => pending.value.forEach(p => p.preview && URL.revokeObjectURL(p.preview)))
+
+/** A video waiting for the product to be saved: the admin may choose an own cover picture instead of the one taken from the video. */
+function changePendingCover(p, e) {
+  const f = e.target.files[0]
+  e.target.value = ''
+  if (!f) return
+  error.value = ''
+  if (!/\.(png|jpe?g|webp)$/i.test(f.name)) { error.value = 'The cover must be a PNG, JPG or WEBP picture.'; return }
+  if (f.size > props.limits.poster_max_mb * 1024 * 1024) { error.value = `The cover must be ${props.limits.poster_max_mb} MB or smaller.`; return }
+  if (p.preview) URL.revokeObjectURL(p.preview)
+  pending.value = pending.value.map(x => (x.key === p.key ? { ...x, poster: f, preview: URL.createObjectURL(f) } : x))
+}
 
 async function upload() {
   if (!file.value || busy.value) return
@@ -150,9 +167,10 @@ async function move(i, by) {
 <template>
   <div class="vm" data-testid="video-manager">
     <ul v-if="staging && pending.length" class="vm__list" data-testid="video-pending">
-      <li v-for="p in pending" :key="p.key">
-        <span class="vm__poster"><UploadCloud :size="20" /></span>
-        <div class="grow"><strong>{{ p.file.name }}</strong><small class="muted">{{ formatBytes(p.file.size) }} · uploaded when you save the product</small></div>
+      <li v-for="p in pending" :key="p.key" :data-pending-video="p.key">
+        <span class="vm__poster"><img v-if="p.preview" :src="p.preview" :alt="`Cover of ${p.file.name}`" data-testid="pending-cover" /><UploadCloud v-else :size="20" /></span>
+        <div class="grow"><strong>{{ p.file.name }}</strong><small class="muted">{{ formatBytes(p.file.size) }} · uploaded when you save the product<template v-if="!p.preview"> · no cover picture</template></small></div>
+        <label class="btn btn-soft btn-sm btn-icon" title="Change the cover picture"><ImagePlus :size="14" /><input type="file" accept="image/png,image/jpeg,image/webp" class="sr-only" :aria-label="`Cover picture of ${p.file.name}`" data-testid="pending-cover-input" @change="changePendingCover(p, $event)" /></label>
         <button class="btn btn-soft-danger btn-sm btn-icon" type="button" :aria-label="`Remove ${p.file.name}`" @click="unstage(p.key)"><Trash2 :size="14" /></button>
       </li>
     </ul>
@@ -179,7 +197,7 @@ async function move(i, by) {
     </div>
     <div v-if="busy" class="vm__bar" role="progressbar" :aria-valuenow="progress" aria-valuemin="0" aria-valuemax="100"><i :style="{ width: `${progress}%` }" /><span>{{ progress }}%</span></div>
     <p v-else-if="full" class="hint">{{ limits.max_files }} videos is the most a product can have. Delete one to add another.</p>
-    <p class="hint">MP4 or WEBM, up to {{ limits.max_mb }} MB each, at most {{ limits.max_files }} videos. The cover is a picture taken from the video itself; to use your own picture, press the picture icon on the video after it is uploaded. The file is shown as it is (no conversion), so keep it small. A slow connection makes a large file take a while: wait for the bar to finish.</p>
+    <p class="hint">MP4 or WEBM, up to {{ limits.max_mb }} MB each, at most {{ limits.max_files }} videos. The cover is a picture taken from the video itself; to use your own picture, press the picture icon on the video. The file is shown as it is (no conversion), so keep it small. A slow connection makes a large file take a while: wait for the bar to finish.</p>
     <p v-if="error" class="err" role="alert">{{ error }}</p>
   </div>
 </template>
