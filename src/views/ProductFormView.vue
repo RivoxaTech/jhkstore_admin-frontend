@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
-import { ChevronDown, ChevronRight } from '@lucide/vue'
+import { ChevronDown, ChevronRight, Plus } from '@lucide/vue'
 import { api } from '@/api/client.js'
 import { useUiStore } from '@/stores/ui.js'
 import { useAuthStore } from '@/stores/auth.js'
@@ -60,6 +60,16 @@ const blankVariant = (over = {}) => ({
   price_tiers: [], pending: [], stock: 0, stock_was: null, reserved: 0, low_stock_threshold: 5, ...over,
 })
 const variants = ref([])   // the options: every product has at least one; the cheapest one gives the starting price
+// ONE option = the product itself: its price and stock are asked in Basics and the Options card only offers "Add option". From two options on, every option
+// (the first one included, it keeps the product's name and SKU) is a row of the Options table.
+const single = computed(() => variants.value.length === 1)
+const pricingOff = computed(() => {
+  const v = variants.value[0]
+  const m = Number(v?.mrp), p = Number(v?.selling_price)
+  if (!v || !(m > 0) || v.selling_price === '' || Number.isNaN(p)) return ''
+  const d = Math.round(((m - p) / m) * 10000) / 100
+  return d > 0 ? `${d}% off` : d < 0 ? 'above MRP' : ''
+})
 
 // ---- dropdowns (the saved category stays selectable even if switched off since)
 const categoryOptions = computed(() => {
@@ -158,8 +168,8 @@ const err = (key) => errors.value[key]?.[0] || ''
 const clearError = (...keys) => { const next = { ...errors.value }; keys.forEach(k => delete next[k]); errors.value = next }
 const hasErrorIn = (prefixes) => Object.keys(errors.value).some(k => prefixes.some(p => k === p || k.startsWith(`${p}.`)))
 const sectionErrors = computed(() => ({
-  basics: hasErrorIn(['category_id', 'sub_category_id', 'name', 'sku', 'badge_text', 'short_description', 'description', 'tax_rate', 'status', 'tag_ids']),
-  options: hasErrorIn(['variants']),
+  basics: hasErrorIn(['category_id', 'sub_category_id', 'name', 'sku', 'badge_text', 'short_description', 'description', 'tax_rate', 'status', 'tag_ids']) || (single.value && hasErrorIn(['variants'])),
+  options: !single.value && hasErrorIn(['variants']),
   stock: hasErrorIn(['min_order_qty', 'max_order_qty']),
   video: hasErrorIn(['video_url']),
   content: hasErrorIn(['content_tabs']),
@@ -480,6 +490,37 @@ function showErrors(message) {
             <p v-if="err('badge_text')" class="err">{{ err('badge_text') }}</p>
           </div>
         </div>
+        <div v-if="single" class="pf-row pf-row--price" data-testid="basic-pricing">
+          <div class="field">
+            <label for="variants-0-price">Price ({{ catalog.currency.symbol }}) <span class="req">*</span></label>
+            <input id="variants-0-price" v-model="variants[0].selling_price" class="input" type="number" min="0" step="0.01" :class="{ 'has-error': err('variants.0.selling_price') }" @input="clearError('variants.0.selling_price')" />
+            <small v-if="pricingOff" class="off-tag" data-testid="off-label">{{ pricingOff }}</small>
+            <p v-if="err('variants.0.selling_price')" class="err">{{ err('variants.0.selling_price') }}</p>
+          </div>
+          <div class="field">
+            <label for="variants-0-mrp">Regular price ({{ catalog.currency.symbol }})</label>
+            <input id="variants-0-mrp" v-model="variants[0].mrp" class="input" type="number" min="0" step="0.01" placeholder="optional" :class="{ 'has-error': err('variants.0.mrp') }" @input="clearError('variants.0.mrp', 'variants.0.selling_price')" />
+            <p v-if="err('variants.0.mrp')" class="err">{{ err('variants.0.mrp') }}</p>
+            <p v-else class="hint">The crossed-out price. Empty = the price.</p>
+          </div>
+          <div class="field">
+            <label for="variants-0-stock">Stock</label>
+            <input id="variants-0-stock" v-model="variants[0].stock" class="input" type="number" min="0" step="1" :class="{ 'has-error': err('variants.0.stock') }" @input="clearError('variants.0.stock')" />
+            <small v-if="variants[0].reserved" class="muted">{{ variants[0].reserved }} reserved by open orders</small>
+            <p v-if="err('variants.0.stock')" class="err">{{ err('variants.0.stock') }}</p>
+          </div>
+          <div class="field">
+            <label for="variants-0-alert">Alert at</label>
+            <input id="variants-0-alert" v-model="variants[0].low_stock_threshold" class="input" type="number" min="0" step="1" :class="{ 'has-error': err('variants.0.low_stock_threshold') }" @input="clearError('variants.0.low_stock_threshold')" />
+            <p v-if="err('variants.0.low_stock_threshold')" class="err">{{ err('variants.0.low_stock_threshold') }}</p>
+            <p v-else class="hint">Warn when this many are left.</p>
+          </div>
+          <div class="field">
+            <label for="variants-0-weight">Weight (grams)</label>
+            <input id="variants-0-weight" v-model="variants[0].weight_grams" class="input" type="number" min="0" :class="{ 'has-error': err('variants.0.weight_grams') }" @input="clearError('variants.0.weight_grams')" />
+            <p v-if="err('variants.0.weight_grams')" class="err">{{ err('variants.0.weight_grams') }}</p>
+          </div>
+        </div>
         <div class="field">
           <label for="short">Short description</label>
           <textarea id="short" v-model="form.short_description" class="textarea" rows="2" maxlength="500" :class="{ 'has-error': err('short_description') }" />
@@ -505,10 +546,15 @@ function showErrors(message) {
       </CollapsibleSection>
 
       <!-- ================= Options and pricing ================= -->
-      <CollapsibleSection id="options" title="Options and pricing" :always-open="!isEdit" :has-error="sectionErrors.options">
-        <template #head><span v-if="startingPrice !== null" class="off-badge" data-testid="starting-price">Starting at {{ money(startingPrice) }}</span></template>
+      <CollapsibleSection id="options" :title="single ? 'Options' : 'Options and pricing'" :always-open="!isEdit" :has-error="sectionErrors.options">
+        <template #head><span v-if="!single && startingPrice !== null" class="off-badge" data-testid="starting-price">Starting at {{ money(startingPrice) }}</span></template>
         <p v-if="err('variants')" class="err">{{ err('variants') }}</p>
+        <div v-if="single" class="pf-options-one" data-testid="options-single">
+          <p class="hint">The price and the stock above are for the whole product. Does it come in sizes, colours or sets? Add an option: every option then has its own name, SKU, price and stock.</p>
+          <button class="btn btn-outline btn-sm" type="button" data-testid="add-option" @click="addVariant"><Plus :size="14" /> Add option</button>
+        </div>
         <OptionsTable
+          v-else
           :rows="variants" :errors="errors" :product-id="id" :images="images"
           @clear="clearError(...$event)" @add="addVariant" @remove="removeVariant" @default="makeDefault" @active="onActiveChange" @images="images = $event"
         />
@@ -520,7 +566,7 @@ function showErrors(message) {
           <div><strong>{{ stockSummary.units }}</strong><span>units in stock</span></div>
           <div><strong>{{ stockSummary.reserved }}</strong><span>reserved by open orders</span></div>
           <div :class="{ 'is-warn': stockSummary.low }"><strong>{{ stockSummary.low }}</strong><span>option(s) running low</span></div>
-          <p class="hint" style="grid-column: 1 / -1; margin: 0">Stock and the alert level are edited per option in the table above.</p>
+          <p class="hint" style="grid-column: 1 / -1; margin: 0">{{ single ? 'Stock and the alert level are set under the price, in Basics.' : 'Stock and the alert level are edited per option in the table above.' }}</p>
         </div>
         <div class="pf-row">
           <div class="field">
@@ -621,6 +667,10 @@ function showErrors(message) {
 .pf :deep(.textarea) { min-height: 44px; }
 .pf-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px 14px; align-items: start; }
 .pf-row--name { grid-template-columns: minmax(260px, 2fr) minmax(160px, 1fr) minmax(160px, 1fr); }
+.pf-row--price { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+.pf-options-one { display: flex; gap: 12px 16px; align-items: center; flex-wrap: wrap; }
+.pf-options-one .hint { margin: 0; flex: 1 1 320px; }
+.off-tag { display: block; font-size: 11px; color: var(--success, #16a34a); margin-top: 2px; }
 .pf-switches { display: grid; gap: 6px; align-content: start; padding-top: 18px; }
 .pf-switch { display: flex; gap: 8px; align-items: center; font-weight: 500; margin: 0; }
 .pf-stock { display: flex; gap: 12px; flex-wrap: wrap; }

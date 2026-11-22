@@ -32,13 +32,6 @@ const off = (r) => {
 
 const activeCount = computed(() => props.rows.filter(r => r.is_active).length)
 
-// A product with ONE option has nothing to choose between: that option IS the product (its name and SKU are the product's, set above), so the table
-// only asks for what is specific to it: the prices and the stock. Name, SKU, default and active come back as soon as a second option is added.
-const single = computed(() => props.rows.length === 1)
-const hideActive = computed(() => single.value && props.rows[0]?.is_active)
-const cols = computed(() => (single.value ? 0 : 3) + 4 + (hideActive.value ? 0 : 1) + 1)   // the cells of a row, for the colspan of the extra row
-const hiddenProblem = computed(() => (single.value ? ['name', 'sku'].map(k => err(0, k)).find(Boolean) || '' : ''))
-
 const moreFor = ref(new Set())
 const root = ref(null)
 const toggleMore = (i) => { const next = new Set(moreFor.value); next.has(i) ? next.delete(i) : next.add(i); moreFor.value = next }
@@ -47,24 +40,23 @@ const immediate = (r) => props.productId !== null && r.id !== null
 
 <template>
   <div ref="root" class="opt">
-    <p v-if="hiddenProblem" class="err" role="alert" data-testid="option-hidden-error">{{ hiddenProblem }}</p>
     <div class="table-wrap opt__wrap">
-      <table class="table opt-table" :class="{ 'is-single': single }" data-testid="options-table">
+      <table class="table opt-table" data-testid="options-table">
         <thead>
           <tr>
-            <template v-if="!single"><th title="Preselected on the product page">Default</th><th>Name <span class="req">*</span></th><th>SKU <span class="req">*</span></th></template>
-            <th title="Optional. The crossed-out price. Empty = the price below.">MRP ({{ symbol }})</th><th>Price ({{ symbol }}) <span class="req">*</span></th><th>Stock</th><th title="Alert when this many or fewer are left">Alert at</th><th v-if="!hideActive">Active</th><th />
+            <th title="Preselected on the product page">Default</th><th>Name <span class="req">*</span></th><th>SKU <span class="req">*</span></th>
+            <th title="Optional. The crossed-out price. Empty = the price below.">MRP ({{ symbol }})</th><th>Price ({{ symbol }}) <span class="req">*</span></th><th>Stock</th><th title="Alert when this many or fewer are left">Alert at</th><th>Active</th><th />
           </tr>
         </thead>
         <tbody>
           <template v-for="(r, i) in rows" :key="r.id ?? `n${i}`">
             <tr :class="{ 'is-bad': rowHasError(i), 'is-off': !r.is_active }" :data-option="i">
-              <td v-if="!single" class="c"><input type="radio" name="default-option" :checked="r.is_default" :disabled="!r.is_active" :aria-label="`Make option ${i + 1} the default`" @change="emit('default', i)" /></td>
-              <td v-if="!single">
+              <td class="c"><input type="radio" name="default-option" :checked="r.is_default" :disabled="!r.is_active" :aria-label="`Make option ${i + 1} the default`" @change="emit('default', i)" /></td>
+              <td>
                 <input :id="`variants-${i}-name`" v-model="r.name" class="input input--sm" maxlength="255" :aria-label="`Option ${i + 1} name`" placeholder="e.g. Blue, 500 ml" :class="{ 'has-error': err(i, 'name') }" @input="clear(i, 'name')" />
                 <p v-if="err(i, 'name')" class="err">{{ err(i, 'name') }}</p>
               </td>
-              <td v-if="!single">
+              <td>
                 <input :id="`variants-${i}-sku`" v-model="r.sku" class="input input--sm" maxlength="80" :aria-label="`Option ${i + 1} SKU`" :class="{ 'has-error': err(i, 'sku') }" @input="clear(i, 'sku')" />
                 <p v-if="err(i, 'sku')" class="err">{{ err(i, 'sku') }}</p>
               </td>
@@ -85,7 +77,7 @@ const immediate = (r) => props.productId !== null && r.id !== null
               <td>
                 <input v-model="r.low_stock_threshold" class="input input--sm input--num" type="number" min="0" step="1" :aria-label="`Low-stock alert of option ${i + 1}`" :class="{ 'has-error': err(i, 'low_stock_threshold') }" @input="clear(i, 'low_stock_threshold')" />
               </td>
-              <td v-if="!hideActive" class="c">
+              <td class="c">
                 <label class="switch" :title="r.is_active && activeCount < 2 ? 'The only active option cannot be switched off' : ''"><input v-model="r.is_active" type="checkbox" :disabled="r.is_active && activeCount < 2" :aria-label="`Option ${i + 1} active`" @change="emit('active', r)" /><span /></label>
               </td>
               <td class="nowrap">
@@ -94,8 +86,8 @@ const immediate = (r) => props.productId !== null && r.id !== null
               </td>
             </tr>
             <tr v-if="moreFor.has(i)" class="opt-more">
-              <td v-if="!single" />
-              <td :colspan="cols - (single ? 0 : 1)">
+              <td />
+              <td colspan="8">
                 <div class="opt-more__grid">
                   <div class="field" style="max-width: 180px">
                     <label :for="`opt-w-${i}`">Weight (grams)</label>
@@ -119,7 +111,7 @@ const immediate = (r) => props.productId !== null && r.id !== null
     </div>
     <div class="opt__foot">
       <button class="btn btn-outline btn-sm" type="button" data-testid="add-option" @click="emit('add')"><Plus :size="14" /> Add option</button>
-      <span class="muted">{{ single ? 'Press Add option only if the product comes in sizes, colours or sets: each one then gets its own name, SKU and price.' : 'Customers add an option to the cart; the cheapest active option gives the starting price.' }}</span>
+      <span class="muted">Customers add an option to the cart; the cheapest active option gives the starting price.</span>
     </div>
   </div>
 </template>
@@ -127,7 +119,6 @@ const immediate = (r) => props.productId !== null && r.id !== null
 <style scoped>
 .opt__wrap { overflow-x: auto; padding-bottom: 6px; }
 .opt-table { min-width: 780px; }
-.opt-table.is-single { min-width: 0; }
 .opt-table th { white-space: nowrap; }
 .opt-table td { vertical-align: top; padding: 5px 6px; }
 .opt-table td.c, .opt-table th.c { text-align: center; }

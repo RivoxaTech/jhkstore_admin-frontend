@@ -10,8 +10,8 @@
         "route": "product-new",
         "text": "Add a product"
       },
-      "duration": 65.6,
-      "bytes": 1045116,
+      "duration": 63.3,
+      "bytes": 977370,
       "steps": [
         {
           "text": "Open Products and press Add product",
@@ -19,35 +19,35 @@
         },
         {
           "text": "Choose the category, and the sub-category if there is one",
-          "at": 7.6
+          "at": 7.5
         },
         {
           "text": "Type the product name. The SKU is made for you",
-          "at": 18.9
+          "at": 18.3
+        },
+        {
+          "text": "Type the price, the old price (optional) and the stock",
+          "at": 23.1
         },
         {
           "text": "Write a short description and the full description",
-          "at": 23.7
+          "at": 29.8
         },
         {
           "text": "Set the status to Active. Only Active products show on the website",
-          "at": 37.5
-        },
-        {
-          "text": "Under Options and pricing type the old price, the price and the stock",
-          "at": 43.7
+          "at": 43.1
         },
         {
           "text": "Add pictures. The first one is the main picture",
-          "at": 51
+          "at": 49.3
         },
         {
           "text": "Press Add product to save",
-          "at": 54.7
+          "at": 53
         },
         {
           "text": "Done. The product is in the list. The website shows it after the next rebuild, 1 to 3 minutes",
-          "at": 60.4
+          "at": 58.4
         }
       ]
     },
@@ -61,8 +61,8 @@
         "route": "products",
         "text": "Open Products"
       },
-      "duration": 54.5,
-      "bytes": 723038,
+      "duration": 53.1,
+      "bytes": 835678,
       "steps": [
         {
           "text": "Find the product with the search box",
@@ -74,31 +74,27 @@
         },
         {
           "text": "Press the pencil to open the product",
-          "at": 19.6
-        },
-        {
-          "text": "Go to Options and pricing. Open it if it is closed",
-          "at": 23.6
+          "at": 19.3
         },
         {
           "text": "Change the price. The old price has to be higher than the price",
-          "at": 26.4
+          "at": 23.2
         },
         {
           "text": "Change the stock when you receive or sell toys",
+          "at": 26.7
+        },
+        {
+          "text": "Need a second size or colour? Open Options, press Add option and fill it in",
           "at": 29.8
         },
         {
-          "text": "Need a second size or colour? Press Add option and fill it in",
-          "at": 32.8
-        },
-        {
           "text": "Press Save product",
-          "at": 45.7
+          "at": 44.3
         },
         {
           "text": "Saved. Customers pay the price shown in the cart, and it is live at once on the product page",
-          "at": 50.9
+          "at": 49.5
         }
       ]
     },
