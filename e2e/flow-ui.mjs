@@ -195,12 +195,7 @@ try {
   await setValue(d.page, '#sku', 'UI-TABLE-1')
   await setValue(d.page, '#short', 'Made in the admin form')
   await setValue(d.page, '#mtitle', 'UI Oak Table | Test')
-  // one option = the product itself: no second name and SKU to type (they come back when a second option is added)
-  check(!(await d.page.$('#variants-0-name')) && !(await d.page.$('#variants-0-sku')) && !!(await d.page.$('#variants-0-price')), 'UI-B5 a product with one option asks only for the prices and the stock (no second name or SKU)')
-  await tap(d.page, '[data-testid="add-option"]')
-  check(!!(await d.page.$('#variants-0-name')) && !!(await d.page.$('#variants-1-name')) && await d.page.$eval('#variants-0-name', (el) => el.value) === 'UI Oak Table', 'UI-B5 Add option brings back name and SKU, the first option keeps the product name')
-  await tap(d.page, '[aria-label="Remove option 2"]')
-  check(!(await d.page.$('#variants-0-name')), 'UI-B5 removing the second option hides them again')
+  await setValue(d.page, '#variants-0-name', 'Standard')   // the option name starts as a copy of the product name
   await setValue(d.page, '#variants-0-mrp', '200')
   await setValue(d.page, '#variants-0-price', '180')
   await setValue(d.page, '#variants-0-stock', '7')
@@ -211,7 +206,7 @@ try {
   const uiVar = uiProd && db(`SELECT stock_qty, selling_price, mrp FROM product_variants WHERE product_id = ${uiProd.id}`)[0]
   check(uiProd && uiProd.status === 'active' && uiVar.stock_qty === 7 && Number(uiVar.selling_price) === 180, 'UI-B5 a product made in the form: sub-category, option, price 180/200, stock 7, active', { uiProd, uiVar })
   const pub = await api('GET', `store/products/${uiProd?.slug}`)
-  check(pub.status === 200 && pub.json?.data?.product_name === 'UI Oak Table' && pub.json?.data?.variants?.[0]?.name === 'UI Oak Table', 'UI-B5 and it is on the public API at once', pub.status)
+  check(pub.status === 200 && pub.json?.data?.product_name === 'UI Oak Table' && pub.json?.data?.variants?.[0]?.name === 'Standard', 'UI-B5 and it is on the public API at once', pub.status)
 
   // ============================================================ D12-D14: the order screens (client admin)
   const sample = (await api('GET', 'store/products?per_page=50')).json?.data?.find((p) => p.name !== 'UI Oak Table')
